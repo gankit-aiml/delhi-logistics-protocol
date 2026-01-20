@@ -98,6 +98,17 @@ export const VoiceInputPanel = ({ onIntentParsed }: VoiceInputPanelProps) => {
           Powered by <span className="font-mono text-blue-600 bg-blue-50 px-1 rounded">Llama-3-8b</span> via Python Backend.
         </p>
       </div>
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 shadow-sm">
+        <p className="text-xs font-bold text-blue-600 uppercase tracking-wide mb-2">
+           How to test
+        </p>
+        <p className="text-sm text-slate-700 mb-1">
+          Press <strong>Speak</strong>:
+        </p>
+        <p className="text-sm font-medium text-slate-800 italic bg-white p-2 rounded border border-blue-100">
+          Eg. "Main <span className="text-blue-600">Azadpur Mandi</span> se <span className="text-blue-600">Okhla Phase 3</span> ja raha hun, gaadi <span className="text-green-600">poori khali</span> hai"
+        </p>
+      </div>
 
       <div className="flex gap-4">
         <Button 
