@@ -12,7 +12,7 @@ export const Header = () => {
   const location = useLocation();
 
   return (
-    <header className="border-b border-border bg-background sticky top-0 z-50">
+    <header className="border-b border-border bg-background sticky top-0 z-[9999]">
       <div className="container-narrow">
         <nav className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2 text-primary">
