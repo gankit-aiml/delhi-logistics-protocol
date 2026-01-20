@@ -47,12 +47,14 @@ Rules for Extraction:
    - "X se Y" -> Origin: X, Dest: Y
    - "From X to Y" -> Origin: X, Dest: Y
    
-2. **Capacity (Load)**:
-   - "Khali" / "Empty" -> 100%
-   - "Full" / "Bhara" -> 0%
-   - "Aadha" / "Adha" / "Aadhi" / "Adhi" / "Aadi" (Typo) -> 50%
-   - If user says "Aadha khali" (Half empty) -> 50%
-   - If user says "Thoda jagah hai" (Some space) -> 25%
+2. **Capacity (CRITICAL: Return AVAILABLE FREE SPACE %)**:
+   - YOU MUST OUTPUT HOW MUCH SPACE IS LEFT.
+   - "Khali" / "Empty" -> 100
+   - "Full" / "Bhara" / "Loaded" -> 0
+   - "Aadha" / "Half" -> 50
+   - If user says "30% Khali" (30% Empty) -> Return 30.
+   - If user says "30% Bhara" (30% Full) -> Return 70.
+   - If user says "70% Load" -> Return 30 (because 30 is free).
    
 3. **Typo Handling**:
    - Treat "Aadi" (आदि) as "Aadhi" (Half) in the context of capacity.
