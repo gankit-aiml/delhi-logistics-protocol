@@ -59,6 +59,12 @@ Rules for Extraction:
 
 4. Output JSON ONLY. Format: {"origin": "string", "destination": "string", "capacity": int, "confidence": float}
 """
+
+# Health Check Endpoint (Keeps the server awake)
+@app.get("/")
+def read_root():
+    return {"status": "DLPP Backend is Online", "uptime": "Active"}
+    
 @app.post("/parse", response_model=LogisticsIntent)
 async def parse_intent(request: VoiceRequest):
     print(f"Received Audio Transcript: {request.text}")
