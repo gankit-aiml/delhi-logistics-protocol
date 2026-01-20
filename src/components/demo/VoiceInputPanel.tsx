@@ -142,7 +142,7 @@ export const VoiceInputPanel = ({ onIntentParsed }: VoiceInputPanelProps) => {
             <div className="ml-2 text-yellow-300">
                Origin: "{parsedResult.origin}" <br/>
                Dest: "{parsedResult.destination}" <br/>
-               Load: {parsedResult.capacity}%
+               Free Space: {parsedResult.capacity}%
             </div>
           </div>
         )}
