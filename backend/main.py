@@ -9,7 +9,7 @@ import json
 # You need a GROQ API KEY (It's free and fastest for this). 
 # Get it here: https://console.groq.com/keys
 # Or swap this for OpenAI if you prefer.
-os.environ["GROQ_API_KEY"] = "GROQ_API_KEY"
+
 
 app = FastAPI()
 
