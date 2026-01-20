@@ -17,7 +17,7 @@ export const Header = () => {
         <nav className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2 text-primary">
             <img
-              src="public\image-removebg-preview.png"
+              src="/image-removebg-preview.png"
               alt="DLPP Logo"
               className="h-7 w-auto"
             />
