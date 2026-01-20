@@ -15,8 +15,15 @@ export const Header = () => {
     <header className="border-b border-border bg-background sticky top-0 z-50">
       <div className="container-narrow">
         <nav className="flex items-center justify-between h-16">
-          <Link to="/" className="font-semibold text-lg text-primary">
-            DLPP
+          <Link to="/" className="flex items-center gap-2 text-primary">
+            <img
+              src="public\image-removebg-preview.png"
+              alt="DLPP Logo"
+              className="h-7 w-auto"
+            />
+            <span className="font-semibold text-lg tracking-tight">
+              DLPP
+            </span>
           </Link>
           <ul className="hidden md:flex items-center gap-1">
             {navItems.map((item) => (
