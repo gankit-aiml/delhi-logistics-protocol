@@ -26,7 +26,7 @@ export const VoiceInputPanel = ({ onIntentParsed }: VoiceInputPanelProps) => {
     setStatus("Sending to Vaani Engine (Llama-3)...");
 
     try {
-      const response = await fetch("https://delhi-logistics-protocol.onrender.com", {
+      const response = await fetch("https://delhi-logistics-protocol.onrender.com/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
