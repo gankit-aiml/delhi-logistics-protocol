@@ -80,16 +80,6 @@ export const VoiceInputPanel = ({ onIntentParsed }: VoiceInputPanelProps) => {
     recognition.start();
   }, []);
 
-  // Demo Simulation for when you don't want to speak
-  const simulateBackend = () => {
-    const demos = [
-      "Main Azadpur Mandi se Okhla Phase 3 ja raha hun, gaadi poori khali hai",
-      "Gurgaon se Connaught Place jana hai, 50% capacity",
-    ];
-    const text = demos[Math.floor(Math.random() * demos.length)];
-    parseWithBackend(text);
-  };
-
   return (
     <div className="h-full flex flex-col p-6 space-y-6 bg-slate-50/50">
       <div>
@@ -117,9 +107,6 @@ export const VoiceInputPanel = ({ onIntentParsed }: VoiceInputPanelProps) => {
           className={`w-full h-16 text-lg ${isListening ? "bg-red-500 hover:bg-red-600" : "bg-indigo-600 hover:bg-indigo-700"}`}
         >
           {isListening ? "Listening..." : isProcessing ? "AI Processing..." : " Speak "}
-        </Button>
-        <Button onClick={simulateBackend} variant="outline" className="h-16 px-6">
-          Simulate
         </Button>
       </div>
 
