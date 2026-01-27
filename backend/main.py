@@ -43,9 +43,9 @@ Known Locations in Delhi/NCR:
 [Azadpur Mandi, Okhla, Connaught Place (CP), Rohini, Dwarka, Saket, Nehru Place, Karol Bagh, Lajpat Nagar, Gurgaon, Noida, Ghaziabad, Faridabad, Haridwar, Meerut, Sonipat]
 
 Rules for Extraction:
-1. **Origin & Destination**: 
-   - "X se Y" -> Origin: X, Dest: Y
-   - "From X to Y" -> Origin: X, Dest: Y
+1. **Origin & Destination (CRITICAL: OUTPUT IN ENGLISH ONLY)**: 
+   - Even if the input is Hindi (e.g., "नरेला"), you MUST translate it to English (e.g., "Narela").
+   - "X se Y" -> Origin: X (English), Dest: Y (English)
    
 2. **Capacity (CRITICAL: Return AVAILABLE FREE SPACE %)**:
    - YOU MUST OUTPUT HOW MUCH SPACE IS LEFT.
