@@ -16,12 +16,12 @@ let DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// Dynamic Truck Icon
+// Truck Icon
 const truckIcon = new L.DivIcon({
   className: 'custom-icon',
-  html: `<div style="background-color: #2563eb; width: 36px; height: 36px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.4); font-size: 20px; transition: all 0.3s ease;">🚚</div>`,
-  iconSize: [36, 36],
-  iconAnchor: [18, 18]
+  html: `<div style="background-color: #2563eb; width: 40px; height: 40px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.4); font-size: 22px; transition: all 0.5s linear;">🚚</div>`,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20]
 });
 
 // Order Icons
@@ -53,19 +53,24 @@ async function geocodeLocation(placeName: string): Promise<[number, number] | nu
   } catch (error) { return null; }
 }
 
-async function getRoadRoute(start: [number, number], end: [number, number]): Promise<[number, number][]> {
+// 2. Routing WITH STEPS (Turn-by-Turn)
+async function getRoadRouteWithSteps(start: [number, number], end: [number, number]) {
   try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`;
+    // Request 'steps=true' to get turn instructions
+    const url = `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson&steps=true`;
     const response = await fetch(url);
     const data = await response.json();
+    
     if (data.routes && data.routes.length > 0) {
-      const coordinates = data.routes[0].geometry.coordinates;
-      return coordinates.map((coord: number[]) => [coord[1], coord[0]]);
+      const coordinates = data.routes[0].geometry.coordinates.map((coord: number[]) => [coord[1], coord[0]]);
+      const steps = data.routes[0].legs[0].steps; // Get turn instructions
+      return { coordinates, steps };
     }
-    return [start, end];
-  } catch (error) { return [start, end]; }
+    return { coordinates: [start, end], steps: [] };
+  } catch (error) { return { coordinates: [start, end], steps: [] }; }
 }
 
+// Random Orders
 const generateRandomOrders = (count: number) => {
   const orders = [];
   const minLat = 28.45, maxLat = 28.85;
@@ -80,6 +85,41 @@ const generateRandomOrders = (count: number) => {
   return orders;
 };
 
+// --- HINDI SLANG GENERATOR ---
+const getInstructionSlang = (modifier: string, type: string) => {
+    if (type === 'arrive') return "Bas pahunch gaye ustaad. Gaadi side laga lo.";
+    if (modifier?.includes('left')) return "Ustaad, aage se Left le lena.";
+    if (modifier?.includes('right')) return "Bhai, Right ka cut maaro.";
+    if (modifier?.includes('straight')) return "Seedha kheecho, rasta saaf hai.";
+    if (modifier?.includes('uturn')) return "Yahan se U-Turn ghumao.";
+    return "Chalte raho.";
+};
+
+// --- VOICE LOGIC ---
+const speakDelhiStyle = (text: string) => {
+  if (!window.speechSynthesis) return;
+  
+  // Don't interrupt if already speaking the exact same phrase
+  if (window.speechSynthesis.speaking) {
+      // optional: cancel if you want instant override, but for smooth flow we might wait
+      // window.speechSynthesis.cancel(); 
+  }
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  
+  // Try to find a better voice (Google Hindi is best if available)
+  const voices = window.speechSynthesis.getVoices();
+  const hindiVoice = voices.find(v => v.name.includes("Google") && v.lang.includes("hi")) || voices.find(v => v.lang.includes("hi"));
+  
+  if (hindiVoice) utterance.voice = hindiVoice;
+  utterance.lang = 'hi-IN';
+  utterance.rate = 0.85; // Slow down for "Human" feel
+  utterance.pitch = 0.9; // Lower pitch = more authoritative/male driver feel
+
+  window.speechSynthesis.speak(utterance);
+};
+
+// Distance Helper
 function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371; 
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -88,20 +128,6 @@ function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// --- VOICE LOGIC ---
-const speakDelhiStyle = (text: string) => {
-  if (!window.speechSynthesis) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'hi-IN';
-  utterance.rate = 0.95;
-  const voices = window.speechSynthesis.getVoices();
-  const hindiVoice = voices.find(v => v.lang.includes('hi'));
-  if (hindiVoice) utterance.voice = hindiVoice;
-  window.speechSynthesis.speak(utterance);
-};
-
-// Map Auto-Zoom
 function MapUpdater({ bounds }: { bounds: L.LatLngBoundsExpression | null }) {
   const map = useMap();
   useEffect(() => {
@@ -118,15 +144,17 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
   const [originCoords, setOriginCoords] = useState<[number, number] | null>(null);
   const [destCoords, setDestCoords] = useState<[number, number] | null>(null);
   const [routePath, setRoutePath] = useState<[number, number][]>([]);
+  const [navSteps, setNavSteps] = useState<any[]>([]); // Store OSRM Steps
   const [loading, setLoading] = useState(false);
   const [matchedOrders, setMatchedOrders] = useState<number[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [currentInstruction, setCurrentInstruction] = useState("Route Calcuating...");
   
   // ANIMATION STATE
   const [truckPos, setTruckPos] = useState<[number, number] | null>(null);
   const [pathIndex, setPathIndex] = useState(0);
   const animationRef = useRef<NodeJS.Timeout | null>(null);
-  const hasSpokenArrival = useRef(false);
+  const spokenSteps = useRef<Set<number>>(new Set());
 
   const allOrders = useMemo(() => generateRandomOrders(30), []);
 
@@ -140,7 +168,7 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
       setLoading(true);
       setMatchedOrders([]);
       setPathIndex(0);
-      hasSpokenArrival.current = false;
+      spokenSteps.current.clear();
       if(animationRef.current) clearInterval(animationRef.current);
 
       const start = await geocodeLocation(intent.origin);
@@ -149,17 +177,19 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
       if (start && end) {
         setOriginCoords(start);
         setDestCoords(end);
-        setTruckPos(start); // Start truck at origin
+        setTruckPos(start);
         
-        const path = await getRoadRoute(start, end);
-        setRoutePath(path);
+        // GET ROUTE + STEPS
+        const { coordinates, steps } = await getRoadRouteWithSteps(start, end);
+        setRoutePath(coordinates);
+        setNavSteps(steps); // Save instructions
 
-        // Packet Switching Logic
+        // Packet Switching
         const matches: number[] = [];
         allOrders.forEach(order => {
             let isNear = false;
-            for (let i = 0; i < path.length; i += 5) {
-                if (getDistanceFromLatLonInKm(order.pos[0], order.pos[1], path[i][0], path[i][1]) < 1.5) {
+            for (let i = 0; i < coordinates.length; i += 5) {
+                if (getDistanceFromLatLonInKm(order.pos[0], order.pos[1], coordinates[i][0], coordinates[i][1]) < 1.5) {
                     isNear = true; break;
                 }
             }
@@ -167,10 +197,10 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         });
         setMatchedOrders(matches);
 
-        // Start Navigation Voice
+        // Start Voice
         if (soundEnabled) {
             setTimeout(() => {
-                speakDelhiStyle(`Chalo ustaad, ${intent.origin} se ${intent.destination} ka route clear hai.`);
+                speakDelhiStyle(`Chalo ustaad, ${intent.origin} se ${intent.destination} ka route set hai.`);
             }, 1000);
         }
       }
@@ -180,34 +210,53 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
     fetchPath();
   }, [intent, allOrders]);
 
-  // --- ANIMATION LOOP ---
+  // --- SMOOTH SLOW ANIMATION ---
   useEffect(() => {
     if (routePath.length > 0) {
         animationRef.current = setInterval(() => {
             setPathIndex((prev) => {
-                // Move 2 steps per tick for speed
-                const next = prev + 2;
+                const next = prev + 1; // Move 1 step at a time (Slow)
                 
-                // ARRIVAL CHECK
+                // --- NAVIGATION LOGIC ---
+                if (routePath[next]) {
+                    const currentLoc = routePath[next];
+                    
+                    // Check if current location matches any Turn Step
+                    // OSRM steps don't map 1:1 to coordinates indices, so we use proximity check
+                    // But for demo simplicity, we process 'steps' sequentially based on progress
+                    
+                    // Simple Logic: Map % progress of steps to % progress of path
+                    const progress = next / routePath.length;
+                    const stepIndex = Math.floor(progress * navSteps.length);
+                    
+                    if (navSteps[stepIndex] && !spokenSteps.current.has(stepIndex)) {
+                        const step = navSteps[stepIndex];
+                        const maneuver = step.maneuver;
+                        
+                        // Only speak if it's a turn (ignore 'depart')
+                        if (maneuver.type !== 'depart' && maneuver.type !== 'arrive') {
+                            const slang = getInstructionSlang(maneuver.modifier, maneuver.type);
+                            if (soundEnabled) speakDelhiStyle(slang);
+                            setCurrentInstruction(slang);
+                        }
+                        spokenSteps.current.add(stepIndex);
+                    }
+                }
+
                 if (next >= routePath.length - 1) {
                     if (animationRef.current) clearInterval(animationRef.current);
-                    
-                    if (soundEnabled && !hasSpokenArrival.current) {
-                        speakDelhiStyle("Pahunch gaye ustaad. Delivery complete.");
-                        hasSpokenArrival.current = true;
-                    }
+                    if (soundEnabled) speakDelhiStyle("Pahunch gaye ustaad. Delivery complete.");
                     return routePath.length - 1;
                 }
                 return next;
             });
-        }, 50); // 50ms refresh rate
+        }, 200); // 200ms = Slower, smoother movement
     }
     return () => {
         if (animationRef.current) clearInterval(animationRef.current);
     };
-  }, [routePath, soundEnabled]);
+  }, [routePath, soundEnabled, navSteps]);
 
-  // Update truck position based on index
   useEffect(() => {
       if (routePath.length > 0 && routePath[pathIndex]) {
           setTruckPos(routePath[pathIndex]);
@@ -219,7 +268,6 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
   return (
     <div className="h-full w-full rounded-lg overflow-hidden border border-border shadow-sm relative group">
       
-      {/* Sound Toggle */}
       <button 
         onClick={() => setSoundEnabled(!soundEnabled)}
         className="absolute top-4 left-14 z-[400] bg-white p-2 rounded-md shadow-md border border-gray-200 hover:bg-gray-50"
@@ -231,35 +279,24 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
         <MapUpdater bounds={bounds} />
 
-        {/* Orders */}
         {allOrders.map(order => (
-            <Marker 
-                key={order.id} 
-                position={order.pos} 
-                icon={matchedOrders.includes(order.id) ? matchedOrderIcon : pendingOrderIcon} 
-                zIndexOffset={matchedOrders.includes(order.id) ? 1000 : 0}
-            >
+            <Marker key={order.id} position={order.pos} icon={matchedOrders.includes(order.id) ? matchedOrderIcon : pendingOrderIcon} zIndexOffset={matchedOrders.includes(order.id) ? 1000 : 0}>
                 <Popup>Weight: {order.weight}kg</Popup>
             </Marker>
         ))}
 
-        {/* Route Line */}
         {routePath.length > 0 && <Polyline positions={routePath} pathOptions={{ color: '#2563eb', weight: 6, opacity: 0.6 }} />}
 
-        {/* MOVING TRUCK */}
         {truckPos && (
           <Marker position={truckPos} icon={truckIcon} zIndexOffset={9999}>
-            <Popup className="font-bold">🚚 DL-1L-8902<br/>Live Tracking</Popup>
+            <Popup>🚚 Live Tracking</Popup>
           </Marker>
         )}
 
-        {/* Start/End Markers */}
         {originCoords && <Marker position={originCoords} opacity={0.6}><Popup>Origin</Popup></Marker>}
         {destCoords && <Marker position={destCoords} opacity={0.6}><Popup>Destination</Popup></Marker>}
-
       </MapContainer>
 
-      {/* Loading Overlay */}
       {loading && (
         <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-[500] flex items-center justify-center">
           <div className="bg-white px-6 py-4 rounded-xl shadow-2xl flex flex-col items-center gap-3 border border-blue-100">
@@ -269,17 +306,17 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         </div>
       )}
 
-      {/* Live Stats Overlay */}
+      {/* NAV DISPLAY BAR */}
       {!loading && routePath.length > 0 && (
-          <div className="absolute bottom-6 left-6 z-[400] animate-in slide-in-from-bottom-4">
-              <div className="bg-white/95 backdrop-blur border border-green-200 p-4 rounded-lg shadow-xl">
+          <div className="absolute bottom-6 left-6 right-6 z-[400] animate-in slide-in-from-bottom-4 flex justify-between items-end pointer-events-none">
+              <div className="bg-white/95 backdrop-blur border border-green-200 p-4 rounded-lg shadow-xl pointer-events-auto">
                   <div className="flex items-center gap-2 mb-2">
                       <Navigation className="w-4 h-4 text-blue-600 animate-pulse" />
                       <h4 className="font-bold text-gray-800 text-sm">Live Navigation</h4>
                   </div>
                   <div className="text-xs text-gray-600 space-y-1">
                       <p>Found <strong className="text-green-700">{matchedOrders.length} packets</strong> on route.</p>
-                      <p>Speed Advisory: <strong className="text-blue-600">45 km/h (Green Wave)</strong></p>
+                      <p className="font-mono text-blue-700 bg-blue-50 p-1 rounded">"{currentInstruction}"</p>
                   </div>
               </div>
           </div>
