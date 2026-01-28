@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from groq import Groq
 import json
+from fastapi.responses import Response
+import edge_tts
 
 # --- CONFIGURATION ---
 # You need a GROQ API KEY (It's free and fastest for this). 
@@ -101,3 +103,22 @@ async def parse_intent(request: VoiceRequest):
             capacity=0,
             confidence=0.0
         )
+
+@app.post("/speak")
+async def generate_speech(request: VoiceRequest):
+    text = request.text
+    # VOICE SELECTION: 
+    # "en-IN-PrabhatNeural" is a great Indian English male voice
+    # "hi-IN-MadhurNeural" is a great Hindi male voice
+    voice = "hi-IN-MadhurNeural" 
+    
+    communicate = edge_tts.Communicate(text, voice)
+    
+    # Generate audio in memory
+    audio_data = b""
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            audio_data += chunk["data"]
+            
+    # Return as MP3
+    return Response(content=audio_data, media_type="audio/mpeg")
