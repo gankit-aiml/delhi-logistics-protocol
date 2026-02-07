@@ -5,71 +5,40 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import type { ParsedIntent } from "./VoiceInputPanel";
 
-// --- ICONS SETUP ---
+// --- ICONS SETUP (NO EMOJIS, PURE GEOMETRIC DOTS) ---
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 let DefaultIcon = L.icon({ iconUrl: icon, shadowUrl: iconShadow, iconSize: [25, 41], iconAnchor: [12, 41] });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// 1. TRUCK ICON
+// 1. TRUCK ICON (Keep emoji inside div for clarity, or remove if strictly needed)
 const truckIcon = new L.DivIcon({
   className: 'custom-icon',
-  html: `<div style="background-color: #2563eb; width: 40px; height: 40px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.4); font-size: 22px;">🚛</div>`,
-  iconSize: [40, 40],
-  iconAnchor: [20, 20]
-});
-
-// 2. ORDER ICONS
-const pendingOrderIcon = new L.DivIcon({
-  className: 'custom-icon',
-  html: `<div style="background-color: #f97316; width: 10px; height: 10px; border-radius: 50%; border: 1px solid white; opacity: 0.6;"></div>`,
-  iconSize: [10, 10]
-});
-
-const matchedOrderIcon = new L.DivIcon({
-  className: 'custom-icon',
-  html: `<div style="background-color: #22c55e; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; color: white; font-size: 8px; font-weight: bold; box-shadow: 0 0 10px #22c55e;">📦</div>`,
-  iconSize: [16, 16]
-});
-
-// 3. GODOWN (MICRO-HUB) ICONS
-const godownIconDefault = new L.DivIcon({
-  className: 'custom-icon',
-  html: `<div style="background-color: #475569; width: 24px; height: 24px; border-radius: 4px; border: 1px solid white; display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; opacity: 0.8; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">🏭</div>`,
-  iconSize: [24, 24],
-  iconAnchor: [12, 12]
-});
-
-const godownIconActive = new L.DivIcon({
-  className: 'custom-icon',
-  html: `<div style="background-color: #9333ea; width: 36px; height: 36px; border-radius: 6px; border: 3px solid white; display: flex; align-items: center; justify-content: center; color: white; font-size: 20px; box-shadow: 0 0 20px #9333ea; animation: pulse 1.5s infinite;">🏪</div>`,
+  html: `<div style="background-color: #2563eb; width: 36px; height: 36px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.4); font-size: 18px;">🚚</div>`,
   iconSize: [36, 36],
   iconAnchor: [18, 18]
 });
 
-// --- DATA: REAL UNDER-UTILIZED CLUSTERS ---
-const FIXED_GODOWNS = [
-    { id: 'okhla', name: 'Okhla Phase I Godowns', pos: [28.5292, 77.2845] as [number, number], capacity: '60% Vacant' },
-    { id: 'okhla2', name: 'Okhla Phase III Sheds', pos: [28.5450, 77.2650] as [number, number], capacity: '45% Vacant' },
-    { id: 'naraina', name: 'Naraina Ind. Area', pos: [28.6366, 77.1350] as [number, number], capacity: '50% Vacant' },
-    { id: 'mayapuri', name: 'Mayapuri Depot', pos: [28.6330, 77.1200] as [number, number], capacity: 'Auto Parts Storage' },
-    { id: 'wazirpur', name: 'Wazirpur Metal Sheds', pos: [28.6980, 77.1650] as [number, number], capacity: 'Under-utilized' },
-    { id: 'shahdara', name: 'Shahdara GT Road', pos: [28.6750, 77.2900] as [number, number], capacity: 'Family Godowns' },
-    { id: 'jhilmil', name: 'Jhilmil Colony Storage', pos: [28.6650, 77.3100] as [number, number], capacity: 'Small Hub' },
-    { id: 'azadpur', name: 'Azadpur Cold Storage', pos: [28.7100, 77.1800] as [number, number], capacity: 'Perishables' },
-    { id: 'patparganj', name: 'Patparganj Ind. Area', pos: [28.6300, 77.3000] as [number, number], capacity: 'E-com Hub' },
-    { id: 'lawrence', name: 'Lawrence Road', pos: [28.6850, 77.1600] as [number, number], capacity: 'Food Grains' },
-];
+// 2. ORDER ICONS (Dots)
+const pendingOrderIcon = new L.DivIcon({
+  className: 'custom-icon',
+  html: `<div style="background-color: #f97316; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>`,
+  iconSize: [12, 12]
+});
 
-const generateRandomOrders = (count: number) => {
-    const minLat = 28.45, maxLat = 28.85;
-    const minLng = 77.05, maxLng = 77.35;
-    return Array.from({length: count}).map((_, i) => ({
-        id: i,
-        pos: [Math.random() * (maxLat - minLat) + minLat, Math.random() * (maxLng - minLng) + minLng] as [number, number],
-        weight: Math.floor(Math.random()*50)+10
-    }));
-};
+const matchedOrderIcon = new L.DivIcon({
+  className: 'custom-icon',
+  html: `<div style="background-color: #22c55e; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 8px #22c55e;"></div>`,
+  iconSize: [16, 16]
+});
+
+// 3. GODOWN ICONS (Purple Dots)
+const godownIcon = new L.DivIcon({
+  className: 'custom-icon',
+  html: `<div style="background-color: #9333ea; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 15px #9333ea; animation: pulse 2s infinite;"></div>`,
+  iconSize: [20, 20],
+  iconAnchor: [10, 10]
+});
 
 // --- API HELPERS ---
 async function geocodeLocation(placeName: string): Promise<[number, number] | null> {
@@ -98,6 +67,16 @@ async function getRoadRouteWithSteps(start: [number, number], end: [number, numb
     return { coordinates: [start, end], steps: [] };
   } catch { return { coordinates: [start, end], steps: [] }; }
 }
+
+const generateRandomOrders = (count: number) => {
+    const minLat = 28.45, maxLat = 28.85;
+    const minLng = 77.05, maxLng = 77.35;
+    return Array.from({length: count}).map((_, i) => ({
+        id: i,
+        pos: [Math.random() * (maxLat - minLat) + minLat, Math.random() * (maxLng - minLng) + minLng] as [number, number],
+        weight: Math.floor(Math.random()*50)+10
+    }));
+};
 
 function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371; 
@@ -140,6 +119,12 @@ function MapUpdater({ bounds }: { bounds: L.LatLngBoundsExpression | null }) {
   return null;
 }
 
+interface Godown {
+    id: string;
+    name: string;
+    pos: [number, number];
+}
+
 interface DelhiMapProps {
   intent: ParsedIntent | null;
 }
@@ -153,7 +138,9 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [currentInstruction, setCurrentInstruction] = useState("Route Calculating...");
   const [matchedOrders, setMatchedOrders] = useState<number[]>([]);
-  const [activeHubs, setActiveHubs] = useState<string[]>([]);
+  
+  // DYNAMIC GODOWNS STATE
+  const [dynamicGodowns, setDynamicGodowns] = useState<Godown[]>([]);
   
   const [truckPos, setTruckPos] = useState<[number, number] | null>(null);
   const [pathIndex, setPathIndex] = useState(0);
@@ -162,11 +149,9 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
   const spokenSteps = useRef<Set<number>>(new Set());
   const spokenHubs = useRef<Set<string>>(new Set());
 
-  // ORDERS & HUBS
   const allOrders = useMemo(() => generateRandomOrders(30), []);
-  const allHubs = useMemo(() => FIXED_GODOWNS, []); // Use real locations
 
-  // 1. INITIALIZE ROUTE
+  // 1. INITIALIZE ROUTE & DYNAMIC HUBS
   useEffect(() => {
     const fetchPath = async () => {
       if (!intent) return;
@@ -176,7 +161,7 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
       setPathIndex(0);
       setIsSpeaking(false);
       setMatchedOrders([]);
-      setActiveHubs([]);
+      setDynamicGodowns([]); // Clear previous hubs
 
       const start = await geocodeLocation(intent.origin);
       const end = await geocodeLocation(intent.destination);
@@ -190,14 +175,19 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         setRoutePath(coordinates);
         setNavSteps(steps);
 
-        // A. MATCH ORDERS
+        // A. MATCH ORDERS (Proximity: 1.0 km)
         const matches: number[] = [];
+        const orderIndices: number[] = []; // Store where on the route we found orders
+
         if (intent.capacity > 0) {
             allOrders.forEach(order => {
                 let isNear = false;
-                for (let i = 0; i < coordinates.length; i += 10) {
+                // Scan route to find match
+                for (let i = 0; i < coordinates.length; i += 5) {
                     if (getDistanceFromLatLonInKm(order.pos[0], order.pos[1], coordinates[i][0], coordinates[i][1]) < 1.0) {
-                        isNear = true; break;
+                        isNear = true;
+                        orderIndices.push(i); // Save the route index where pickup happens
+                        break;
                     }
                 }
                 if (isNear) matches.push(order.id);
@@ -205,23 +195,33 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         }
         setMatchedOrders(matches);
 
-        // B. MATCH REAL GODOWNS (Proximity: 2.0 km)
-        const matchedHubsList: string[] = [];
-        allHubs.forEach(hub => {
-            let isNear = false;
-            for (let i = 0; i < coordinates.length; i += 10) {
-                if (getDistanceFromLatLonInKm(hub.pos[0], hub.pos[1], coordinates[i][0], coordinates[i][1]) < 2.0) {
-                    isNear = true; break;
-                }
+        // B. GENERATE DYNAMIC GODOWNS (Forward placement)
+        // Logic: For every matched order group, place a Godown ~15-20% further down the route path
+        const newGodowns: Godown[] = [];
+        
+        if (orderIndices.length > 0) {
+            // Pick a point further down the road from the last pickup
+            // Avoid placing it at the very end (Destination)
+            const maxOrderIdx = Math.max(...orderIndices);
+            const routeLen = coordinates.length;
+            
+            // Place hub about 20-30 steps ahead, but ensure it's before destination
+            const hubIdx = Math.min(routeLen - 2, maxOrderIdx + 25);
+            
+            if (hubIdx > maxOrderIdx) {
+                newGodowns.push({
+                    id: 'dyn-hub-1',
+                    name: 'Micro-Hub (Dynamic)',
+                    pos: coordinates[hubIdx] as [number, number]
+                });
             }
-            if (isNear) matchedHubsList.push(hub.id);
-        });
-        setActiveHubs(matchedHubsList);
+        }
+        setDynamicGodowns(newGodowns);
 
         // C. INITIAL VOICE
         if (soundEnabled) {
             setIsSpeaking(true);
-            const hubMsg = matchedHubsList.length > 0 ? `${matchedHubsList.length} Hubs route pe hain.` : "";
+            const hubMsg = newGodowns.length > 0 ? "Extra load ke liye aage Godown mark kar diya hai." : "";
             playNeuralVoice(`Chalo ustaad, route set hai. ${hubMsg}`, () => {
                 setIsSpeaking(false);
             });
@@ -230,7 +230,7 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
       setLoading(false);
     };
     fetchPath();
-  }, [intent, allOrders, allHubs]);
+  }, [intent, allOrders]);
 
   // 2. ANIMATION & EVENTS
   useEffect(() => {
@@ -242,26 +242,25 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
                 
                 // --- HUB PROXIMITY CHECK ---
                 if (currentLoc) {
-                    const nearbyHubId = activeHubs.find(id => {
-                        const hub = allHubs.find(h => h.id === id);
-                        return hub && getDistanceFromLatLonInKm(currentLoc[0], currentLoc[1], hub.pos[0], hub.pos[1]) < 0.3; // 300m trigger
-                    });
-
-                    if (nearbyHubId && !spokenHubs.current.has(nearbyHubId)) {
-                        const hub = allHubs.find(h => h.id === nearbyHubId);
-                        clearInterval(animationRef.current!);
-                        setIsSpeaking(true);
-                        spokenHubs.current.add(nearbyHubId);
-                        
-                        const msg = `Ustaad, yahan ${hub?.name} hai. Load drop kar do.`;
-                        setCurrentInstruction(`Drop at ${hub?.name}`);
-                        
-                        if(soundEnabled) {
-                            playNeuralVoice(msg, () => setIsSpeaking(false));
-                        } else {
-                            setTimeout(() => setIsSpeaking(false), 2000);
+                    dynamicGodowns.forEach(hub => {
+                        if (!spokenHubs.current.has(hub.id)) {
+                            const dist = getDistanceFromLatLonInKm(currentLoc[0], currentLoc[1], hub.pos[0], hub.pos[1]);
+                            if (dist < 0.2) { // Very close (200m)
+                                clearInterval(animationRef.current!);
+                                setIsSpeaking(true);
+                                spokenHubs.current.add(hub.id);
+                                
+                                const msg = `Ustaad, Hub aa gaya. Packet yahan drop kar do.`;
+                                setCurrentInstruction(`Drop at Micro-Hub`);
+                                
+                                if(soundEnabled) {
+                                    playNeuralVoice(msg, () => setIsSpeaking(false));
+                                } else {
+                                    setTimeout(() => setIsSpeaking(false), 2000);
+                                }
+                            }
                         }
-                    }
+                    });
                 }
 
                 // --- TURN CHECK ---
@@ -293,7 +292,7 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         }, 100); 
     }
     return () => { if (animationRef.current) clearInterval(animationRef.current); };
-  }, [routePath, isSpeaking, navSteps, soundEnabled, activeHubs, allHubs]);
+  }, [routePath, isSpeaking, navSteps, soundEnabled, dynamicGodowns]);
 
   useEffect(() => {
       if (routePath.length > 0 && routePath[pathIndex]) {
@@ -313,25 +312,22 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         <TileLayer attribution='OpenStreetMap' url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
         <MapUpdater bounds={bounds} />
         
-        {/* GODOWNS LAYER (FIXED) */}
-        {allHubs.map(hub => {
-            const isActive = activeHubs.includes(hub.id);
-            return (
-                <Marker 
-                    key={hub.id} 
-                    position={hub.pos} 
-                    icon={isActive ? godownIconActive : godownIconDefault}
-                    zIndexOffset={isActive ? 1500 : 200}
-                >
-                    <Popup>
-                        <div className="text-xs font-semibold">
-                            {hub.name}<br/>
-                            <span className="text-muted-foreground">{hub.capacity}</span>
-                        </div>
-                    </Popup>
-                </Marker>
-            );
-        })}
+        {/* DYNAMIC GODOWNS LAYER */}
+        {dynamicGodowns.map(hub => (
+            <Marker 
+                key={hub.id} 
+                position={hub.pos} 
+                icon={godownIcon}
+                zIndexOffset={1500}
+            >
+                <Popup>
+                    <div className="text-xs font-semibold">
+                        Micro-Hub (Relay Point)<br/>
+                        <span className="text-green-600">Drop Load Here</span>
+                    </div>
+                </Popup>
+            </Marker>
+        ))}
 
         {/* ORDERS LAYER */}
         {allOrders.map(order => (
@@ -363,7 +359,7 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
                       <span className="font-medium text-lg leading-none">{currentInstruction}</span>
                       <div className="flex gap-3 text-xs text-gray-300 mt-1">
                           {matchedOrders.length > 0 && <span>📦 +{matchedOrders.length} Pickups</span>}
-                          {activeHubs.length > 0 && <span className="text-purple-300">🏭 +{activeHubs.length} Hub Drops</span>}
+                          {dynamicGodowns.length > 0 && <span className="text-purple-300">🏭 +{dynamicGodowns.length} Relay Drops</span>}
                       </div>
                   </div>
               </div>
