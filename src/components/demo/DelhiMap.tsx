@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
-import { Volume2, VolumeX, Navigation } from "lucide-react"; 
+import { Volume2, VolumeX, Navigation, Warehouse, PackageCheck } from "lucide-react"; 
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import type { ParsedIntent } from "./VoiceInputPanel";
@@ -11,7 +11,7 @@ import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 let DefaultIcon = L.icon({ iconUrl: icon, shadowUrl: iconShadow, iconSize: [25, 41], iconAnchor: [12, 41] });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// Truck Icon
+// 1. TRUCK ICON
 const truckIcon = new L.DivIcon({
   className: 'custom-icon',
   html: `<div style="background-color: #2563eb; width: 40px; height: 40px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.4); font-size: 22px;">🚛</div>`,
@@ -19,19 +19,59 @@ const truckIcon = new L.DivIcon({
   iconAnchor: [20, 20]
 });
 
-// Unmatched Order (Orange Dot)
+// 2. ORDER ICONS
 const pendingOrderIcon = new L.DivIcon({
   className: 'custom-icon',
-  html: `<div style="background-color: #f97316; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>`,
-  iconSize: [14, 14]
+  html: `<div style="background-color: #f97316; width: 10px; height: 10px; border-radius: 50%; border: 1px solid white; opacity: 0.6;"></div>`,
+  iconSize: [10, 10]
 });
 
-// Matched Order (Green Checkmark)
 const matchedOrderIcon = new L.DivIcon({
   className: 'custom-icon',
-  html: `<div style="background-color: #22c55e; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: bold; box-shadow: 0 0 10px #22c55e;">✓</div>`,
-  iconSize: [20, 20]
+  html: `<div style="background-color: #22c55e; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; color: white; font-size: 8px; font-weight: bold; box-shadow: 0 0 10px #22c55e;">📦</div>`,
+  iconSize: [16, 16]
 });
+
+// 3. GODOWN (MICRO-HUB) ICONS
+const godownIconDefault = new L.DivIcon({
+  className: 'custom-icon',
+  html: `<div style="background-color: #475569; width: 18px; height: 18px; border-radius: 4px; border: 1px solid white; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; opacity: 0.7;">🏠</div>`,
+  iconSize: [18, 18],
+  iconAnchor: [9, 9]
+});
+
+const godownIconActive = new L.DivIcon({
+  className: 'custom-icon',
+  html: `<div style="background-color: #9333ea; width: 32px; height: 32px; border-radius: 6px; border: 3px solid white; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; box-shadow: 0 0 15px #9333ea; animation: pulse 2s infinite;">🏭</div>`,
+  iconSize: [32, 32],
+  iconAnchor: [16, 16]
+});
+
+// --- GENERATORS ---
+
+// Generate 50+ Godowns all over Delhi
+const generateDenseHubs = (count: number) => {
+    const minLat = 28.48, maxLat = 28.75;
+    const minLng = 77.08, maxLng = 77.32;
+    const types = ["Old Godown", "Kirana Store", "Empty Basement", "Ind. Shed", "Metro Locker"];
+    
+    return Array.from({length: count}).map((_, i) => ({
+        id: `h${i}`,
+        name: `${types[Math.floor(Math.random() * types.length)]} #${i+100}`,
+        pos: [Math.random() * (maxLat - minLat) + minLat, Math.random() * (maxLng - minLng) + minLng] as [number, number],
+        capacity: Math.floor(Math.random() * 500) + 100 // Sq ft
+    }));
+};
+
+const generateRandomOrders = (count: number) => {
+    const minLat = 28.45, maxLat = 28.85;
+    const minLng = 77.05, maxLng = 77.35;
+    return Array.from({length: count}).map((_, i) => ({
+        id: i,
+        pos: [Math.random() * (maxLat - minLat) + minLat, Math.random() * (maxLng - minLng) + minLng] as [number, number],
+        weight: Math.floor(Math.random()*50)+10
+    }));
+};
 
 // --- API HELPERS ---
 async function geocodeLocation(placeName: string): Promise<[number, number] | null> {
@@ -61,18 +101,6 @@ async function getRoadRouteWithSteps(start: [number, number], end: [number, numb
   } catch { return { coordinates: [start, end], steps: [] }; }
 }
 
-const generateRandomOrders = (count: number) => {
-    // Approximate Bounding Box for Delhi NCR
-    const minLat = 28.45, maxLat = 28.85;
-    const minLng = 77.05, maxLng = 77.35;
-    return Array.from({length: count}).map((_, i) => ({
-        id: i,
-        pos: [Math.random() * (maxLat - minLat) + minLat, Math.random() * (maxLng - minLng) + minLng] as [number, number],
-        weight: Math.floor(Math.random()*50)+10
-    }));
-};
-
-// Distance Calc
 function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371; 
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -97,7 +125,7 @@ const playNeuralVoice = async (text: string, onEnd: () => void) => {
         audio.play();
     } catch (e) {
         console.error("Audio failed", e);
-        onEnd(); // Fail gracefully (resume truck)
+        onEnd(); 
     }
 };
 
@@ -108,7 +136,6 @@ const getInstructionSlang = (modifier: string, type: string) => {
     return "Seedha kheecho, rasta saaf hai.";
 };
 
-// Map Zoomer
 function MapUpdater({ bounds }: { bounds: L.LatLngBoundsExpression | null }) {
   const map = useMap();
   useEffect(() => { if (bounds) map.fitBounds(bounds, { padding: [50, 50] }); }, [bounds, map]);
@@ -128,16 +155,18 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [currentInstruction, setCurrentInstruction] = useState("Route Calculating...");
   const [matchedOrders, setMatchedOrders] = useState<number[]>([]);
+  const [activeHubs, setActiveHubs] = useState<string[]>([]);
   
-  // Animation Control
   const [truckPos, setTruckPos] = useState<[number, number] | null>(null);
   const [pathIndex, setPathIndex] = useState(0);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const animationRef = useRef<NodeJS.Timeout | null>(null);
   const spokenSteps = useRef<Set<number>>(new Set());
+  const spokenHubs = useRef<Set<string>>(new Set());
 
-  // Memoize random orders so they don't change on re-render
+  // GENERATE 30 ORDERS & 60 GODOWNS
   const allOrders = useMemo(() => generateRandomOrders(30), []);
+  const allHubs = useMemo(() => generateDenseHubs(60), []);
 
   // 1. INITIALIZE ROUTE
   useEffect(() => {
@@ -145,9 +174,11 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
       if (!intent) return;
       setLoading(true);
       spokenSteps.current.clear();
+      spokenHubs.current.clear();
       setPathIndex(0);
       setIsSpeaking(false);
       setMatchedOrders([]);
+      setActiveHubs([]);
 
       const start = await geocodeLocation(intent.origin);
       const end = await geocodeLocation(intent.destination);
@@ -161,15 +192,12 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         setRoutePath(coordinates);
         setNavSteps(steps);
 
-        // PACKET SWITCHING MATCHING LOGIC (Restored)
+        // A. MATCH ORDERS (Proximity: 1.0 km)
         const matches: number[] = [];
-        // Only match if capacity is available (e.g. Free Space > 0)
-        // Note: intent.capacity represents "Free Space" now based on previous fixes
         if (intent.capacity > 0) {
             allOrders.forEach(order => {
                 let isNear = false;
-                // Check proximity to route
-                for (let i = 0; i < coordinates.length; i += 10) { // Check every 10th point for speed
+                for (let i = 0; i < coordinates.length; i += 10) {
                     if (getDistanceFromLatLonInKm(order.pos[0], order.pos[1], coordinates[i][0], coordinates[i][1]) < 1.0) {
                         isNear = true; break;
                     }
@@ -179,10 +207,24 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         }
         setMatchedOrders(matches);
 
-        // Initial Voice
+        // B. MATCH GODOWNS (Proximity: 1.5 km)
+        const matchedHubsList: string[] = [];
+        allHubs.forEach(hub => {
+            let isNear = false;
+            for (let i = 0; i < coordinates.length; i += 10) {
+                if (getDistanceFromLatLonInKm(hub.pos[0], hub.pos[1], coordinates[i][0], coordinates[i][1]) < 1.5) {
+                    isNear = true; break;
+                }
+            }
+            if (isNear) matchedHubsList.push(hub.id);
+        });
+        setActiveHubs(matchedHubsList);
+
+        // C. INITIAL VOICE
         if (soundEnabled) {
             setIsSpeaking(true);
-            playNeuralVoice(`Chalo ustaad, ${intent.origin} se ${intent.destination} ka route set hai.`, () => {
+            const hubMsg = matchedHubsList.length > 0 ? `${matchedHubsList.length} Godowns mil gaye raaste mein.` : "";
+            playNeuralVoice(`Chalo ustaad, route set hai. ${hubMsg}`, () => {
                 setIsSpeaking(false);
             });
         }
@@ -190,36 +232,56 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
       setLoading(false);
     };
     fetchPath();
-  }, [intent, allOrders]); // Added allOrders to dependency
+  }, [intent, allOrders, allHubs]);
 
-  // 2. THE SYNCED ANIMATION LOOP
+  // 2. ANIMATION & EVENTS
   useEffect(() => {
     if (routePath.length > 0 && !isSpeaking) {
         animationRef.current = setInterval(() => {
             setPathIndex((prev) => {
                 const next = prev + 1;
+                const currentLoc = routePath[next];
                 
-                // CHECK FOR TURNS
+                // --- HUB PROXIMITY CHECK (Dynamic Voice) ---
+                if (currentLoc) {
+                    // Only check active hubs
+                    const nearbyHubId = activeHubs.find(id => {
+                        const hub = allHubs.find(h => h.id === id);
+                        return hub && getDistanceFromLatLonInKm(currentLoc[0], currentLoc[1], hub.pos[0], hub.pos[1]) < 0.3; // 300m trigger
+                    });
+
+                    if (nearbyHubId && !spokenHubs.current.has(nearbyHubId)) {
+                        const hub = allHubs.find(h => h.id === nearbyHubId);
+                        clearInterval(animationRef.current!);
+                        setIsSpeaking(true);
+                        spokenHubs.current.add(nearbyHubId);
+                        
+                        const msg = `Ustaad, yahan ${hub?.name} hai. Load drop kar do.`;
+                        setCurrentInstruction(`Drop at ${hub?.name}`);
+                        
+                        if(soundEnabled) {
+                            playNeuralVoice(msg, () => setIsSpeaking(false));
+                        } else {
+                            setTimeout(() => setIsSpeaking(false), 2000);
+                        }
+                    }
+                }
+
+                // --- TURN CHECK ---
                 const progress = next / routePath.length;
                 const stepIndex = Math.floor(progress * navSteps.length);
                 
                 if (navSteps[stepIndex] && !spokenSteps.current.has(stepIndex)) {
                     const step = navSteps[stepIndex];
                     const maneuver = step.maneuver;
-                    
                     if (maneuver.type !== 'depart' && maneuver.modifier) {
                         clearInterval(animationRef.current!);
                         setIsSpeaking(true);
-                        
                         const slang = getInstructionSlang(maneuver.modifier, maneuver.type);
                         setCurrentInstruction(slang);
                         spokenSteps.current.add(stepIndex);
-
-                        if (soundEnabled) {
-                            playNeuralVoice(slang, () => setIsSpeaking(false));
-                        } else {
-                            setTimeout(() => setIsSpeaking(false), 2000);
-                        }
+                        if (soundEnabled) playNeuralVoice(slang, () => setIsSpeaking(false));
+                        else setTimeout(() => setIsSpeaking(false), 2000);
                         return prev;
                     }
                 }
@@ -233,10 +295,8 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
             });
         }, 100); 
     }
-    return () => {
-        if (animationRef.current) clearInterval(animationRef.current);
-    };
-  }, [routePath, isSpeaking, navSteps, soundEnabled]);
+    return () => { if (animationRef.current) clearInterval(animationRef.current); };
+  }, [routePath, isSpeaking, navSteps, soundEnabled, activeHubs, allHubs]);
 
   useEffect(() => {
       if (routePath.length > 0 && routePath[pathIndex]) {
@@ -256,24 +316,36 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         <TileLayer attribution='OpenStreetMap' url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
         <MapUpdater bounds={bounds} />
         
-        {/* --- RESTORED ORDERS LAYER --- */}
+        {/* GODOWNS LAYER */}
+        {allHubs.map(hub => {
+            const isActive = activeHubs.includes(hub.id);
+            return (
+                <Marker 
+                    key={hub.id} 
+                    position={hub.pos} 
+                    icon={isActive ? godownIconActive : godownIconDefault}
+                    zIndexOffset={isActive ? 1500 : 200}
+                >
+                    {isActive && <Popup><strong>{hub.name}</strong><br/>Capacity: {hub.capacity} sqft</Popup>}
+                </Marker>
+            );
+        })}
+
+        {/* ORDERS LAYER */}
         {allOrders.map(order => (
             <Marker 
                 key={order.id} 
                 position={order.pos} 
                 icon={matchedOrders.includes(order.id) ? matchedOrderIcon : pendingOrderIcon} 
                 zIndexOffset={matchedOrders.includes(order.id) ? 1000 : 0}
-            >
-                <Popup>Weight: {order.weight}kg</Popup>
-            </Marker>
+            />
         ))}
-        {/* ----------------------------- */}
 
         {routePath.length > 0 && <Polyline positions={routePath} pathOptions={{ color: '#2563eb', weight: 6, opacity: 0.6 }} />}
         
         {truckPos && (
           <Marker position={truckPos} icon={truckIcon} zIndexOffset={9999}>
-            <Popup>{isSpeaking ? "🔊 Ustaad Listening..." : "🚚 Moving..."}</Popup>
+            <Popup>{isSpeaking ? "🔊 Listening..." : "🚚 Moving..."}</Popup>
           </Marker>
         )}
         
@@ -291,12 +363,13 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
           <div className="absolute bottom-6 left-6 right-6 z-[400] flex justify-center pointer-events-none">
               <div className="bg-black/80 backdrop-blur text-white px-6 py-3 rounded-full shadow-2xl pointer-events-auto flex items-center gap-3 border border-gray-600">
                   {isSpeaking ? <Volume2 className="w-5 h-5 text-green-400 animate-pulse" /> : <Navigation className="w-5 h-5 text-gray-400" />}
-                  <span className="font-medium text-lg">{currentInstruction}</span>
-                  {matchedOrders.length > 0 && (
-                      <span className="ml-4 text-xs bg-green-900 text-green-200 px-2 py-1 rounded-md border border-green-700">
-                          +{matchedOrders.length} Pickups
-                      </span>
-                  )}
+                  <div className="flex flex-col">
+                      <span className="font-medium text-lg leading-none">{currentInstruction}</span>
+                      <div className="flex gap-3 text-xs text-gray-300 mt-1">
+                          {matchedOrders.length > 0 && <span>📦 +{matchedOrders.length} Pickups</span>}
+                          {activeHubs.length > 0 && <span className="text-purple-300">🏭 +{activeHubs.length} Hub Drops</span>}
+                      </div>
+                  </div>
               </div>
           </div>
       )}
