@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
-import { Volume2, VolumeX, Navigation, Warehouse, PackageCheck } from "lucide-react"; 
+import { Volume2, VolumeX, Navigation } from "lucide-react"; 
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import type { ParsedIntent } from "./VoiceInputPanel";
@@ -35,33 +35,31 @@ const matchedOrderIcon = new L.DivIcon({
 // 3. GODOWN (MICRO-HUB) ICONS
 const godownIconDefault = new L.DivIcon({
   className: 'custom-icon',
-  html: `<div style="background-color: #475569; width: 18px; height: 18px; border-radius: 4px; border: 1px solid white; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; opacity: 0.7;">🏠</div>`,
-  iconSize: [18, 18],
-  iconAnchor: [9, 9]
+  html: `<div style="background-color: #475569; width: 24px; height: 24px; border-radius: 4px; border: 1px solid white; display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; opacity: 0.8; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">🏭</div>`,
+  iconSize: [24, 24],
+  iconAnchor: [12, 12]
 });
 
 const godownIconActive = new L.DivIcon({
   className: 'custom-icon',
-  html: `<div style="background-color: #9333ea; width: 32px; height: 32px; border-radius: 6px; border: 3px solid white; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; box-shadow: 0 0 15px #9333ea; animation: pulse 2s infinite;">🏭</div>`,
-  iconSize: [32, 32],
-  iconAnchor: [16, 16]
+  html: `<div style="background-color: #9333ea; width: 36px; height: 36px; border-radius: 6px; border: 3px solid white; display: flex; align-items: center; justify-content: center; color: white; font-size: 20px; box-shadow: 0 0 20px #9333ea; animation: pulse 1.5s infinite;">🏪</div>`,
+  iconSize: [36, 36],
+  iconAnchor: [18, 18]
 });
 
-// --- GENERATORS ---
-
-// Generate 50+ Godowns all over Delhi
-const generateDenseHubs = (count: number) => {
-    const minLat = 28.48, maxLat = 28.75;
-    const minLng = 77.08, maxLng = 77.32;
-    const types = ["Old Godown", "Kirana Store", "Empty Basement", "Ind. Shed", "Metro Locker"];
-    
-    return Array.from({length: count}).map((_, i) => ({
-        id: `h${i}`,
-        name: `${types[Math.floor(Math.random() * types.length)]} #${i+100}`,
-        pos: [Math.random() * (maxLat - minLat) + minLat, Math.random() * (maxLng - minLng) + minLng] as [number, number],
-        capacity: Math.floor(Math.random() * 500) + 100 // Sq ft
-    }));
-};
+// --- DATA: REAL UNDER-UTILIZED CLUSTERS ---
+const FIXED_GODOWNS = [
+    { id: 'okhla', name: 'Okhla Phase I Godowns', pos: [28.5292, 77.2845] as [number, number], capacity: '60% Vacant' },
+    { id: 'okhla2', name: 'Okhla Phase III Sheds', pos: [28.5450, 77.2650] as [number, number], capacity: '45% Vacant' },
+    { id: 'naraina', name: 'Naraina Ind. Area', pos: [28.6366, 77.1350] as [number, number], capacity: '50% Vacant' },
+    { id: 'mayapuri', name: 'Mayapuri Depot', pos: [28.6330, 77.1200] as [number, number], capacity: 'Auto Parts Storage' },
+    { id: 'wazirpur', name: 'Wazirpur Metal Sheds', pos: [28.6980, 77.1650] as [number, number], capacity: 'Under-utilized' },
+    { id: 'shahdara', name: 'Shahdara GT Road', pos: [28.6750, 77.2900] as [number, number], capacity: 'Family Godowns' },
+    { id: 'jhilmil', name: 'Jhilmil Colony Storage', pos: [28.6650, 77.3100] as [number, number], capacity: 'Small Hub' },
+    { id: 'azadpur', name: 'Azadpur Cold Storage', pos: [28.7100, 77.1800] as [number, number], capacity: 'Perishables' },
+    { id: 'patparganj', name: 'Patparganj Ind. Area', pos: [28.6300, 77.3000] as [number, number], capacity: 'E-com Hub' },
+    { id: 'lawrence', name: 'Lawrence Road', pos: [28.6850, 77.1600] as [number, number], capacity: 'Food Grains' },
+];
 
 const generateRandomOrders = (count: number) => {
     const minLat = 28.45, maxLat = 28.85;
@@ -164,9 +162,9 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
   const spokenSteps = useRef<Set<number>>(new Set());
   const spokenHubs = useRef<Set<string>>(new Set());
 
-  // GENERATE 30 ORDERS & 60 GODOWNS
+  // ORDERS & HUBS
   const allOrders = useMemo(() => generateRandomOrders(30), []);
-  const allHubs = useMemo(() => generateDenseHubs(60), []);
+  const allHubs = useMemo(() => FIXED_GODOWNS, []); // Use real locations
 
   // 1. INITIALIZE ROUTE
   useEffect(() => {
@@ -192,7 +190,7 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         setRoutePath(coordinates);
         setNavSteps(steps);
 
-        // A. MATCH ORDERS (Proximity: 1.0 km)
+        // A. MATCH ORDERS
         const matches: number[] = [];
         if (intent.capacity > 0) {
             allOrders.forEach(order => {
@@ -207,12 +205,12 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         }
         setMatchedOrders(matches);
 
-        // B. MATCH GODOWNS (Proximity: 1.5 km)
+        // B. MATCH REAL GODOWNS (Proximity: 2.0 km)
         const matchedHubsList: string[] = [];
         allHubs.forEach(hub => {
             let isNear = false;
             for (let i = 0; i < coordinates.length; i += 10) {
-                if (getDistanceFromLatLonInKm(hub.pos[0], hub.pos[1], coordinates[i][0], coordinates[i][1]) < 1.5) {
+                if (getDistanceFromLatLonInKm(hub.pos[0], hub.pos[1], coordinates[i][0], coordinates[i][1]) < 2.0) {
                     isNear = true; break;
                 }
             }
@@ -223,7 +221,7 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         // C. INITIAL VOICE
         if (soundEnabled) {
             setIsSpeaking(true);
-            const hubMsg = matchedHubsList.length > 0 ? `${matchedHubsList.length} Godowns mil gaye raaste mein.` : "";
+            const hubMsg = matchedHubsList.length > 0 ? `${matchedHubsList.length} Hubs route pe hain.` : "";
             playNeuralVoice(`Chalo ustaad, route set hai. ${hubMsg}`, () => {
                 setIsSpeaking(false);
             });
@@ -242,9 +240,8 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
                 const next = prev + 1;
                 const currentLoc = routePath[next];
                 
-                // --- HUB PROXIMITY CHECK (Dynamic Voice) ---
+                // --- HUB PROXIMITY CHECK ---
                 if (currentLoc) {
-                    // Only check active hubs
                     const nearbyHubId = activeHubs.find(id => {
                         const hub = allHubs.find(h => h.id === id);
                         return hub && getDistanceFromLatLonInKm(currentLoc[0], currentLoc[1], hub.pos[0], hub.pos[1]) < 0.3; // 300m trigger
@@ -316,7 +313,7 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         <TileLayer attribution='OpenStreetMap' url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
         <MapUpdater bounds={bounds} />
         
-        {/* GODOWNS LAYER */}
+        {/* GODOWNS LAYER (FIXED) */}
         {allHubs.map(hub => {
             const isActive = activeHubs.includes(hub.id);
             return (
@@ -326,7 +323,12 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
                     icon={isActive ? godownIconActive : godownIconDefault}
                     zIndexOffset={isActive ? 1500 : 200}
                 >
-                    {isActive && <Popup><strong>{hub.name}</strong><br/>Capacity: {hub.capacity} sqft</Popup>}
+                    <Popup>
+                        <div className="text-xs font-semibold">
+                            {hub.name}<br/>
+                            <span className="text-muted-foreground">{hub.capacity}</span>
+                        </div>
+                    </Popup>
                 </Marker>
             );
         })}
@@ -352,12 +354,6 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         {originCoords && <Marker position={originCoords}><Popup>Origin</Popup></Marker>}
         {destCoords && <Marker position={destCoords}><Popup>Dest</Popup></Marker>}
       </MapContainer>
-
-      {loading && (
-        <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-[500] flex items-center justify-center">
-            <span className="font-bold text-blue-900 animate-pulse">Calculating Route...</span>
-        </div>
-      )}
 
       {!loading && routePath.length > 0 && (
           <div className="absolute bottom-6 left-6 right-6 z-[400] flex justify-center pointer-events-none">
