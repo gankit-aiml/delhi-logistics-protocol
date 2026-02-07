@@ -5,13 +5,13 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import type { ParsedIntent } from "./VoiceInputPanel";
 
-// --- ICONS SETUP (NO EMOJIS, PURE GEOMETRIC DOTS) ---
+// --- ICONS SETUP ---
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 let DefaultIcon = L.icon({ iconUrl: icon, shadowUrl: iconShadow, iconSize: [25, 41], iconAnchor: [12, 41] });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// 1. TRUCK ICON (Keep emoji inside div for clarity, or remove if strictly needed)
+// 1. TRUCK ICON
 const truckIcon = new L.DivIcon({
   className: 'custom-icon',
   html: `<div style="background-color: #2563eb; width: 36px; height: 36px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.4); font-size: 18px;">🚚</div>`,
@@ -19,7 +19,7 @@ const truckIcon = new L.DivIcon({
   iconAnchor: [18, 18]
 });
 
-// 2. ORDER ICONS (Dots)
+// 2. ORDER ICONS
 const pendingOrderIcon = new L.DivIcon({
   className: 'custom-icon',
   html: `<div style="background-color: #f97316; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>`,
@@ -32,7 +32,7 @@ const matchedOrderIcon = new L.DivIcon({
   iconSize: [16, 16]
 });
 
-// 3. GODOWN ICONS (Purple Dots)
+// 3. GODOWN ICONS
 const godownIcon = new L.DivIcon({
   className: 'custom-icon',
   html: `<div style="background-color: #9333ea; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 15px #9333ea; animation: pulse 2s infinite;"></div>`,
@@ -54,14 +54,23 @@ async function geocodeLocation(placeName: string): Promise<[number, number] | nu
   } catch { return null; }
 }
 
-async function getRoadRouteWithSteps(start: [number, number], end: [number, number]) {
+// UPDATED: Now supports Waypoints (Detours)
+async function getRoadRouteWithSteps(start: [number, number], end: [number, number], waypoint?: [number, number]) {
   try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson&steps=true`;
+    let coordString = `${start[1]},${start[0]};${end[1]},${end[0]}`;
+    
+    // If we have a pickup, route is: Start -> Waypoint -> End
+    if (waypoint) {
+        coordString = `${start[1]},${start[0]};${waypoint[1]},${waypoint[0]};${end[1]},${end[0]}`;
+    }
+
+    const url = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson&steps=true`;
     const response = await fetch(url);
     const data = await response.json();
+    
     if (data.routes && data.routes.length > 0) {
       const coordinates = data.routes[0].geometry.coordinates.map((c: number[]) => [c[1], c[0]]);
-      const steps = data.routes[0].legs[0].steps; 
+      const steps = data.routes[0].legs.flatMap((leg: any) => leg.steps); // Merge steps from all legs
       return { coordinates, steps };
     }
     return { coordinates: [start, end], steps: [] };
@@ -138,8 +147,6 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [currentInstruction, setCurrentInstruction] = useState("Route Calculating...");
   const [matchedOrders, setMatchedOrders] = useState<number[]>([]);
-  
-  // DYNAMIC GODOWNS STATE
   const [dynamicGodowns, setDynamicGodowns] = useState<Godown[]>([]);
   
   const [truckPos, setTruckPos] = useState<[number, number] | null>(null);
@@ -151,7 +158,7 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
 
   const allOrders = useMemo(() => generateRandomOrders(30), []);
 
-  // 1. INITIALIZE ROUTE & DYNAMIC HUBS
+  // 1. INITIALIZE ROUTE & LOGIC
   useEffect(() => {
     const fetchPath = async () => {
       if (!intent) return;
@@ -161,7 +168,7 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
       setPathIndex(0);
       setIsSpeaking(false);
       setMatchedOrders([]);
-      setDynamicGodowns([]); // Clear previous hubs
+      setDynamicGodowns([]);
 
       const start = await geocodeLocation(intent.origin);
       const end = await geocodeLocation(intent.destination);
@@ -171,58 +178,60 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         setDestCoords(end);
         setTruckPos(start);
         
-        const { coordinates, steps } = await getRoadRouteWithSteps(start, end);
-        setRoutePath(coordinates);
-        setNavSteps(steps);
+        // STEP A: Get Initial Route (To find potential pickups)
+        const initialRoute = await getRoadRouteWithSteps(start, end);
+        const initCoords = initialRoute.coordinates;
 
-        // A. MATCH ORDERS (Proximity: 1.0 km)
-        const matches: number[] = [];
-        const orderIndices: number[] = []; // Store where on the route we found orders
-
+        // STEP B: Find ONE Best Pickup Match
+        let bestPickup: { id: number, pos: [number, number] } | null = null;
+        
         if (intent.capacity > 0) {
-            allOrders.forEach(order => {
-                let isNear = false;
-                // Scan route to find match
-                for (let i = 0; i < coordinates.length; i += 5) {
-                    if (getDistanceFromLatLonInKm(order.pos[0], order.pos[1], coordinates[i][0], coordinates[i][1]) < 1.0) {
-                        isNear = true;
-                        orderIndices.push(i); // Save the route index where pickup happens
+            for (const order of allOrders) {
+                // Check if order is somewhat near the straight line (within 2km)
+                for (let i = 0; i < initCoords.length; i += 10) {
+                    if (getDistanceFromLatLonInKm(order.pos[0], order.pos[1], initCoords[i][0], initCoords[i][1]) < 2.0) {
+                        bestPickup = order;
                         break;
                     }
                 }
-                if (isNear) matches.push(order.id);
-            });
+                if (bestPickup) break; // Take first good match
+            }
         }
-        setMatchedOrders(matches);
 
-        // B. GENERATE DYNAMIC GODOWNS (Forward placement)
-        // Logic: For every matched order group, place a Godown ~15-20% further down the route path
+        // STEP C: Re-Calculate Route (Detour to Pickup)
+        let finalRoute;
+        if (bestPickup) {
+            // Recalculate: Start -> Pickup -> End
+            finalRoute = await getRoadRouteWithSteps(start, end, bestPickup.pos);
+            setMatchedOrders([bestPickup.id]);
+        } else {
+            finalRoute = initialRoute;
+        }
+
+        setRoutePath(finalRoute.coordinates);
+        setNavSteps(finalRoute.steps);
+
+        // STEP D: Generate Godown (Downstream from Pickup)
         const newGodowns: Godown[] = [];
-        
-        if (orderIndices.length > 0) {
-            // Pick a point further down the road from the last pickup
-            // Avoid placing it at the very end (Destination)
-            const maxOrderIdx = Math.max(...orderIndices);
-            const routeLen = coordinates.length;
-            
-            // Place hub about 20-30 steps ahead, but ensure it's before destination
-            const hubIdx = Math.min(routeLen - 2, maxOrderIdx + 25);
-            
-            if (hubIdx > maxOrderIdx) {
+        if (bestPickup) {
+            // Find a point in the 2nd half of the route (after pickup)
+            const coords = finalRoute.coordinates;
+            const dropIndex = Math.floor(coords.length * 0.8); // 80% along the way
+            if (coords[dropIndex]) {
                 newGodowns.push({
                     id: 'dyn-hub-1',
-                    name: 'Micro-Hub (Dynamic)',
-                    pos: coordinates[hubIdx] as [number, number]
+                    name: 'Micro-Hub (Relay)',
+                    pos: coords[dropIndex] as [number, number]
                 });
             }
         }
         setDynamicGodowns(newGodowns);
 
-        // C. INITIAL VOICE
+        // STEP E: Initial Voice
         if (soundEnabled) {
             setIsSpeaking(true);
-            const hubMsg = newGodowns.length > 0 ? "Extra load ke liye aage Godown mark kar diya hai." : "";
-            playNeuralVoice(`Chalo ustaad, route set hai. ${hubMsg}`, () => {
+            const pickupMsg = bestPickup ? "Route update: Pickup add kar diya hai." : "Route clear hai.";
+            playNeuralVoice(`Chalo ustaad. ${pickupMsg}`, () => {
                 setIsSpeaking(false);
             });
         }
@@ -232,7 +241,7 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
     fetchPath();
   }, [intent, allOrders]);
 
-  // 2. ANIMATION & EVENTS
+  // 2. ANIMATION LOOP
   useEffect(() => {
     if (routePath.length > 0 && !isSpeaking) {
         animationRef.current = setInterval(() => {
@@ -240,33 +249,26 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
                 const next = prev + 1;
                 const currentLoc = routePath[next];
                 
-                // --- HUB PROXIMITY CHECK ---
+                // HUB CHECK
                 if (currentLoc) {
                     dynamicGodowns.forEach(hub => {
                         if (!spokenHubs.current.has(hub.id)) {
                             const dist = getDistanceFromLatLonInKm(currentLoc[0], currentLoc[1], hub.pos[0], hub.pos[1]);
-                            if (dist < 0.2) { // Very close (200m)
+                            if (dist < 0.2) {
                                 clearInterval(animationRef.current!);
                                 setIsSpeaking(true);
                                 spokenHubs.current.add(hub.id);
-                                
-                                const msg = `Ustaad, Hub aa gaya. Packet yahan drop kar do.`;
-                                setCurrentInstruction(`Drop at Micro-Hub`);
-                                
-                                if(soundEnabled) {
-                                    playNeuralVoice(msg, () => setIsSpeaking(false));
-                                } else {
-                                    setTimeout(() => setIsSpeaking(false), 2000);
-                                }
+                                setCurrentInstruction(`Drop at ${hub.name}`);
+                                if(soundEnabled) playNeuralVoice("Ustaad, Hub aa gaya. Drop kar do.", () => setIsSpeaking(false));
+                                else setTimeout(() => setIsSpeaking(false), 2000);
                             }
                         }
                     });
                 }
 
-                // --- TURN CHECK ---
+                // TURN CHECK
                 const progress = next / routePath.length;
                 const stepIndex = Math.floor(progress * navSteps.length);
-                
                 if (navSteps[stepIndex] && !spokenSteps.current.has(stepIndex)) {
                     const step = navSteps[stepIndex];
                     const maneuver = step.maneuver;
@@ -312,40 +314,23 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
         <TileLayer attribution='OpenStreetMap' url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
         <MapUpdater bounds={bounds} />
         
-        {/* DYNAMIC GODOWNS LAYER */}
+        {/* DYNAMIC GODOWNS */}
         {dynamicGodowns.map(hub => (
-            <Marker 
-                key={hub.id} 
-                position={hub.pos} 
-                icon={godownIcon}
-                zIndexOffset={1500}
-            >
-                <Popup>
-                    <div className="text-xs font-semibold">
-                        Micro-Hub (Relay Point)<br/>
-                        <span className="text-green-600">Drop Load Here</span>
-                    </div>
-                </Popup>
+            <Marker key={hub.id} position={hub.pos} icon={godownIcon} zIndexOffset={1500}>
+                <Popup><div className="text-xs font-semibold">{hub.name}<br/><span className="text-green-600">Drop Here</span></div></Popup>
             </Marker>
         ))}
 
-        {/* ORDERS LAYER */}
+        {/* ORDERS */}
         {allOrders.map(order => (
-            <Marker 
-                key={order.id} 
-                position={order.pos} 
-                icon={matchedOrders.includes(order.id) ? matchedOrderIcon : pendingOrderIcon} 
-                zIndexOffset={matchedOrders.includes(order.id) ? 1000 : 0}
-            />
+            <Marker key={order.id} position={order.pos} icon={matchedOrders.includes(order.id) ? matchedOrderIcon : pendingOrderIcon} zIndexOffset={matchedOrders.includes(order.id) ? 1000 : 0} />
         ))}
 
+        {/* ROUTE */}
         {routePath.length > 0 && <Polyline positions={routePath} pathOptions={{ color: '#2563eb', weight: 6, opacity: 0.6 }} />}
         
-        {truckPos && (
-          <Marker position={truckPos} icon={truckIcon} zIndexOffset={9999}>
-            <Popup>{isSpeaking ? "🔊 Listening..." : "🚚 Moving..."}</Popup>
-          </Marker>
-        )}
+        {/* TRUCK */}
+        {truckPos && <Marker position={truckPos} icon={truckIcon} zIndexOffset={9999}><Popup>🚚 Moving...</Popup></Marker>}
         
         {originCoords && <Marker position={originCoords}><Popup>Origin</Popup></Marker>}
         {destCoords && <Marker position={destCoords}><Popup>Dest</Popup></Marker>}
@@ -358,8 +343,8 @@ export const DelhiMap = ({ intent }: DelhiMapProps) => {
                   <div className="flex flex-col">
                       <span className="font-medium text-lg leading-none">{currentInstruction}</span>
                       <div className="flex gap-3 text-xs text-gray-300 mt-1">
-                          {matchedOrders.length > 0 && <span>📦 +{matchedOrders.length} Pickups</span>}
-                          {dynamicGodowns.length > 0 && <span className="text-purple-300">🏭 +{dynamicGodowns.length} Relay Drops</span>}
+                          {matchedOrders.length > 0 && <span>📦 +1 Pickup Added</span>}
+                          {dynamicGodowns.length > 0 && <span className="text-purple-300">🏭 +1 Hub Drop</span>}
                       </div>
                   </div>
               </div>
