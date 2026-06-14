@@ -6,6 +6,7 @@ const navItems = [
   { href: "/technical-annex", label: "Technical Annex" },
   { href: "/live-demonstration", label: "Live Demonstration" },
   { href: "/scope-limitations", label: "Scope & Limitations" },
+  { href: "/researcher-dashboard", label: "Researcher Dashboard" },
 ];
 
 export const Header = () => {

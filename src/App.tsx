@@ -8,6 +8,7 @@ import PolicyDesign from "./pages/PolicyDesign";
 import TechnicalAnnex from "./pages/TechnicalAnnex";
 import LiveDemonstration from "./pages/LiveDemonstration";
 import ScopeLimitations from "./pages/ScopeLimitations";
+import ResearcherDashboard from "./pages/ResearcherDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/technical-annex" element={<TechnicalAnnex />} />
           <Route path="/live-demonstration" element={<LiveDemonstration />} />
           <Route path="/scope-limitations" element={<ScopeLimitations />} />
+          <Route path="/researcher-dashboard" element={<ResearcherDashboard />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
